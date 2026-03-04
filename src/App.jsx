@@ -135,7 +135,7 @@ const ParticleNetworkCanvas = () => {
     const ctx = canvas.getContext('2d');
     let animationFrameId;
     let particles = [];
-    const config = { particleCount: 70, connectionDistance: 150, mouseRepulsion: 200, baseSpeed: 0.15 };
+    const config = { particleCount: 200, connectionDistance: 200, mouseRepulsion: 200, baseSpeed: 0.15 };
 
     const initParticles = () => {
       particles = [];
@@ -143,7 +143,7 @@ const ParticleNetworkCanvas = () => {
         particles.push({
           x: Math.random() * canvas.width, y: Math.random() * canvas.height,
           vx: (Math.random() - 0.5) * config.baseSpeed, vy: (Math.random() - 0.5) * config.baseSpeed,
-          radius: Math.random() * 1.5 + 0.5, baseAlpha: Math.random() * 0.5 + 0.1
+          radius: Math.random() * 1.5 + 0.5, baseAlpha: Math.random() * 0.5 + 0.2
         });
       }
     };
