@@ -124,6 +124,7 @@ button {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
 .filter-scroll::-webkit-scrollbar {
   display: none;
 }
@@ -133,7 +134,7 @@ button {
   background: rgba(10, 10, 14, 0.8);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 0.75rem;
-  padding: 0.875rem 1rem;
+  padding: 0.875rem 2.5rem;
   color: #e4e4e7;
   font-family: 'Inter', system-ui, sans-serif;
   font-size: 0.875rem;
@@ -141,9 +142,11 @@ button {
   width: 100%;
   outline: none;
 }
+
 .form-input::placeholder {
   color: #52525b;
 }
+
 .form-input:focus {
   border-color: rgba(59, 130, 246, 0.5);
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
