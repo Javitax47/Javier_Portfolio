@@ -997,31 +997,29 @@ export default function App() {
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                   {/* Contact Form */}
-                  <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+                  <form onSubmit={handleFormSubmit} className="flex flex-col gap-4 h-full">
                     <input name="name" type="text" required placeholder="Tu nombre" className="form-input" />
                     <input name="email" type="email" required placeholder="tu@email.com" className="form-input" />
                     <textarea name="message" required rows={5} placeholder="Cuéntame sobre tu proyecto o propuesta..." className="form-input resize-none" />
-                    <Magnetic>
-                      <button
-                        type="submit"
-                        disabled={formStatus === 'sending'}
-                        className={`w-full flex items-center justify-center gap-2 font-medium text-sm px-8 py-4 rounded-xl transition-all ${formStatus === 'sent'
-                          ? 'bg-emerald-500 text-white'
-                          : formStatus === 'error'
-                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                            : 'bg-white text-[#050505] hover:bg-zinc-200 shadow-lg'
-                          }`}
-                      >
-                        {formStatus === 'sending' && <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />}
-                        {formStatus === 'sent' && <><CheckCircle2 size={16} /> ¡Mensaje enviado!</>}
-                        {formStatus === 'error' && <>Error, intenta de nuevo</>}
-                        {formStatus === 'idle' && <><Send size={16} /> Enviar Mensaje</>}
-                      </button>
-                    </Magnetic>
+                    <button
+                      type="submit"
+                      disabled={formStatus === 'sending'}
+                      className={`flex items-center justify-center gap-2 font-medium text-sm px-8 py-4 rounded-xl transition-all mt-auto ${formStatus === 'sent'
+                        ? 'bg-emerald-500 text-white'
+                        : formStatus === 'error'
+                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                          : 'bg-white text-[#050505] hover:bg-zinc-200 shadow-lg'
+                        }`}
+                    >
+                      {formStatus === 'sending' && <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />}
+                      {formStatus === 'sent' && <><CheckCircle2 size={16} /> ¡Mensaje enviado!</>}
+                      {formStatus === 'error' && <>Error, intenta de nuevo</>}
+                      {formStatus === 'idle' && <><Send size={16} /> Enviar Mensaje</>}
+                    </button>
                   </form>
 
                   {/* Social Links & CV */}
-                  <div className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-4 h-full">
                     <a href="mailto:contacto@javier.dev" className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:bg-white/[0.06] hover:border-white/[0.15] transition-all group">
                       <div className="p-2.5 bg-blue-500/10 rounded-lg text-blue-400"><Mail size={18} /></div>
                       <div className="flex-grow">
@@ -1046,11 +1044,9 @@ export default function App() {
                       </div>
                       <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                     </a>
-                    <Magnetic>
-                      <a href="#" download className="w-full flex items-center justify-center gap-2 font-medium text-sm text-zinc-300 bg-white/[0.03] border border-white/[0.1] px-8 py-4 rounded-xl hover:bg-white/[0.08] transition-all">
-                        <FileText size={16} /> Descargar CV (PDF)
-                      </a>
-                    </Magnetic>
+                    <a href="#" download className="flex items-center justify-center gap-2 font-medium text-sm text-zinc-300 bg-white/[0.03] border border-white/[0.1] px-8 py-4 rounded-xl hover:bg-white/[0.08] transition-all mt-auto">
+                      <Download size={16} /> Descargar CV (PDF)
+                    </a>
                   </div>
                 </div>
               </div>
