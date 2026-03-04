@@ -1001,21 +1001,23 @@ export default function App() {
                     <input name="name" type="text" required placeholder="Tu nombre" className="form-input" />
                     <input name="email" type="email" required placeholder="tu@email.com" className="form-input" />
                     <textarea name="message" required rows={5} placeholder="Cuéntame sobre tu proyecto o propuesta..." className="form-input resize-none" />
-                    <button
-                      type="submit"
-                      disabled={formStatus === 'sending'}
-                      className={`flex items-center justify-center gap-2 font-medium text-sm px-8 py-4 rounded-xl transition-all ${formStatus === 'sent'
-                        ? 'bg-emerald-500 text-white'
-                        : formStatus === 'error'
-                          ? 'bg-red-500/20 text-red-400 border border-red-500/30'
-                          : 'bg-white text-[#050505] hover:bg-zinc-200 shadow-lg'
-                        }`}
-                    >
-                      {formStatus === 'sending' && <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />}
-                      {formStatus === 'sent' && <><CheckCircle2 size={16} /> ¡Mensaje enviado!</>}
-                      {formStatus === 'error' && <>Error, intenta de nuevo</>}
-                      {formStatus === 'idle' && <><Send size={16} /> Enviar Mensaje</>}
-                    </button>
+                    <Magnetic>
+                      <button
+                        type="submit"
+                        disabled={formStatus === 'sending'}
+                        className={`w-full flex items-center justify-center gap-2 font-medium text-sm px-8 py-4 rounded-xl transition-all ${formStatus === 'sent'
+                          ? 'bg-emerald-500 text-white'
+                          : formStatus === 'error'
+                            ? 'bg-red-500/20 text-red-400 border border-red-500/30'
+                            : 'bg-white text-[#050505] hover:bg-zinc-200 shadow-lg'
+                          }`}
+                      >
+                        {formStatus === 'sending' && <span className="animate-spin w-4 h-4 border-2 border-current border-t-transparent rounded-full" />}
+                        {formStatus === 'sent' && <><CheckCircle2 size={16} /> ¡Mensaje enviado!</>}
+                        {formStatus === 'error' && <>Error, intenta de nuevo</>}
+                        {formStatus === 'idle' && <><Send size={16} /> Enviar Mensaje</>}
+                      </button>
+                    </Magnetic>
                   </form>
 
                   {/* Social Links & CV */}
@@ -1044,9 +1046,11 @@ export default function App() {
                       </div>
                       <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                     </a>
-                    <a href="#" download className="flex items-center justify-center gap-2 font-medium text-sm text-zinc-300 bg-white/[0.03] border border-white/[0.1] px-6 py-4 rounded-xl hover:bg-white/[0.08] transition-all mt-2">
-                      <Download size={16} /> Descargar CV (PDF)
-                    </a>
+                    <Magnetic>
+                      <a href="#" download className="w-full flex items-center justify-center gap-2 font-medium text-sm text-zinc-300 bg-white/[0.03] border border-white/[0.1] px-8 py-4 rounded-xl hover:bg-white/[0.08] transition-all">
+                        <FileText size={16} /> Descargar CV (PDF)
+                      </a>
+                    </Magnetic>
                   </div>
                 </div>
               </div>
