@@ -13,7 +13,6 @@ import {
   Search,
   Send,
   Download,
-  Twitter,
   ArrowUpRight,
 
   // Categoría: Software & Tech
@@ -701,9 +700,6 @@ export default function App() {
                 <a href="https://github.com/Javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
                   <Github size={20} />
                 </a>
-                <a href="https://twitter.com/javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-sky-400 transition-colors">
-                  <Twitter size={20} />
-                </a>
               </div>
             </div>
           </div>
@@ -1045,14 +1041,6 @@ export default function App() {
                       <div className="flex-grow">
                         <p className="text-sm font-medium text-white">LinkedIn</p>
                         <p className="text-xs text-zinc-500">linkedin.com/in/javier</p>
-                      </div>
-                      <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
-                    </a>
-                    <a href="https://twitter.com/javier" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:bg-white/[0.06] hover:border-white/[0.15] transition-all group">
-                      <div className="p-2.5 bg-sky-500/10 rounded-lg text-sky-400"><Twitter size={18} /></div>
-                      <div className="flex-grow">
-                        <p className="text-sm font-medium text-white">Twitter / X</p>
-                        <p className="text-xs text-zinc-500">@javier</p>
                       </div>
                       <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                     </a>
