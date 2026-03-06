@@ -123,27 +123,53 @@ const Magnetic = ({ children }) => {
 
 const LiquidContainer = ({ children, className = "", Element = "div", ...props }) => {
   const containerRef = useRef(null);
+  const [isTouched, setIsTouched] = useState(false);
 
-  const handleMouseMove = useCallback((e) => {
+  const updatePosition = useCallback((clientX, clientY) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
-    containerRef.current.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    containerRef.current.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+    containerRef.current.style.setProperty('--mouse-x', `${clientX - rect.left}px`);
+    containerRef.current.style.setProperty('--mouse-y', `${clientY - rect.top}px`);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    updatePosition(e.clientX, e.clientY);
+  }, [updatePosition]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches.length > 0) {
+      updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, [updatePosition]);
+
+  const handleTouchStart = useCallback((e) => {
+    setIsTouched(true);
+    if (e.touches.length > 0) {
+      updatePosition(e.touches[0].clientX, e.touches[0].clientY);
+    }
+  }, [updatePosition]);
+
+  const handleTouchEnd = useCallback(() => {
+    setIsTouched(false);
   }, []);
 
   return (
     <Element
       ref={containerRef}
       onMouseMove={handleMouseMove}
-      className={`group/liquid relative liquid-glass ${className}`}
+      onTouchMove={handleTouchMove}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      className={`group/liquid relative liquid-glass ${className} ${isTouched ? 'active-touch' : ''}`}
       {...props}
     >
-      <div className="pointer-events-none absolute -inset-px opacity-0 group-hover/liquid:opacity-100 transition-opacity duration-300 z-0 rounded-[inherit]" style={{ background: `radial-gradient(600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.1), transparent 40%)` }} />
-      <div className="pointer-events-none absolute inset-0 opacity-0 group-hover/liquid:opacity-100 transition-opacity duration-500 z-0 rounded-[inherit]" style={{ background: `radial-gradient(800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.02), transparent 40%)` }} />
+      <div className={`pointer-events-none absolute -inset-px opacity-0 transition-opacity duration-300 z-0 rounded-[inherit] ${isTouched ? 'opacity-100' : 'group-hover/liquid:opacity-100'}`} style={{ background: `radial-gradient(600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.1), transparent 40%)` }} />
+      <div className={`pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 z-0 rounded-[inherit] ${isTouched ? 'opacity-100' : 'group-hover/liquid:opacity-100'}`} style={{ background: `radial-gradient(800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.02), transparent 40%)` }} />
       {children}
     </Element>
   );
 };
+
 
 // --- COMPONENTES VISUALES ---
 
@@ -838,17 +864,17 @@ export default function App() {
 
       {/* NAVBAR */}
       <div className={`
-        fixed w-full top-6 z-50 px-4 flex justify-center transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform
-        ${navVisible || mobileMenuOpen ? 'translate-y-0' : '-translate-y-32'}
+        fixed w-full top-2 md:top-6 z-50 px-2 md:px-4 flex justify-center transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform
+        ${navVisible || mobileMenuOpen ? 'translate-y-0' : '-translate-y-24 md:-translate-y-32'}
       `}>
         <LiquidContainer Element="nav" className={`
           flex items-center transition-all duration-500 ease-in-out liquid-glass
           bg-[#0a0a0a]/80 backdrop-blur-[40px]
           ${(navVisible || mobileMenuOpen) ? 'nav-visible' : ''}
-          ${mobileMenuOpen ? 'rounded-3xl px-8 py-5 w-full max-w-sm' : 'rounded-full px-4 md:px-6 py-2 md:py-3 w-fit'}
+          ${mobileMenuOpen ? 'rounded-2xl px-4 py-2 w-[calc(100%-1rem)] max-w-md mx-auto justify-between' : 'rounded-full px-3 md:px-6 py-1.5 md:py-3 w-fit'}
         `}>
-          {/* Logo - Hidden when menu is open on mobile to focus on the island feel */}
-          <a href="#" className={`font-semibold text-lg text-white tracking-tight hover:opacity-80 transition-all duration-300 ${mobileMenuOpen ? 'opacity-0 scale-95 pointer-events-none w-0' : 'opacity-100 scale-100'}`}>
+          {/* Logo - Keep visible on mobile even when open for standard look */}
+          <a href="#" className={`font-semibold text-lg text-white tracking-tight hover:opacity-80 transition-all duration-300 ${!mobileMenuOpen && 'md:opacity-100'} ${mobileMenuOpen ? 'opacity-100' : 'opacity-100'}`}>
             Javier<span className="text-blue-500">.</span>
           </a>
 
@@ -881,90 +907,80 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mobile Menu Toggle - Centered when open */}
+          {/* Mobile Menu Toggle */}
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className={`
               md:hidden flex items-center gap-2 transition-all duration-300 focus:outline-none active:outline-none
-              ${mobileMenuOpen ? 'w-full justify-between' : 'ml-3 md:ml-4 p-0.5 md:p-1'}
+              ${mobileMenuOpen ? '' : 'ml-3 p-0.5'}
             `}
             aria-label="Toggle menu"
           >
-            {mobileMenuOpen && (
-              <span className="text-sm font-mono tracking-widest uppercase text-zinc-500 animate-in fade-in slide-in-from-left-4 duration-500">Navegación</span>
-            )}
-            <div className={`p-1.5 md:p-2 rounded-full transition-colors ${mobileMenuOpen ? 'bg-white/5 text-white' : 'text-zinc-400 hover:text-white'}`}>
-              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            <div className={`p-1.5 rounded-full transition-colors ${mobileMenuOpen ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-white'}`}>
+              {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
             </div>
           </button>
         </LiquidContainer>
       </div>
 
-      {/* PREMIUM MOBILE OVERLAY MENU */}
+      {/* STANDARD MOBILE OVERLAY MENU */}
       <div className={`
-        fixed inset-0 z-[45] md:hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
-        ${mobileMenuOpen ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-105'}
+        fixed inset-0 z-[45] md:hidden transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]
+        ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}
       `}>
-        {/* Extreme Blur Background */}
-        <div className="absolute inset-0 bg-[#050505]/80 backdrop-blur-[40px]" onClick={() => setMobileMenuOpen(false)} />
+        {/* Blur Background */}
+        <div className="absolute inset-0 bg-[#050505]/95 backdrop-blur-xl" onClick={() => setMobileMenuOpen(false)} />
 
-        {/* Dynamic Gradients */}
-        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-          <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse"></div>
-          <div className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
-        </div>
-
-        <div className="relative h-full flex flex-col justify-center items-center px-8">
-          <div className="flex flex-col items-center gap-8 w-full max-w-xs">
+        <div className="relative h-full flex flex-col pt-24 px-6 pb-8">
+          <div className="flex flex-col gap-4 w-full max-w-sm mx-auto">
             {navLinks.map((link, index) => (
               <a
                 key={link.id}
                 href={`#${link.id}`}
                 onClick={(e) => handleNavClick(e, link.id)}
-                className="group relative flex items-center justify-center w-full py-4 overflow-hidden"
+                className="group relative flex items-center justify-between w-full py-2.5 px-2 border-b border-white/[0.05]"
                 style={{ transitionDelay: `${index * 50}ms` }}
               >
                 <span className={`
-                  text-4xl font-bold tracking-tight transition-all duration-500
-                  ${activeSection === link.id ? 'text-white' : 'text-zinc-600 group-hover:text-zinc-300'}
-                  ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                  text-lg font-medium tracking-wide transition-all duration-500
+                  ${activeSection === link.id ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-200'}
+                  ${mobileMenuOpen ? 'translate-x-0 opacity-100' : '-translate-x-4 opacity-0'}
                 `}>
                   {link.label}
                 </span>
-                {activeSection === link.id && (
-                  <span className="absolute bottom-2 w-12 h-[2px] bg-blue-500 rounded-full animate-in zoom-in duration-500" />
-                )}
+                <ChevronRight size={18} className={`
+                  transition-all duration-500
+                  ${activeSection === link.id ? 'text-blue-500 opacity-100' : 'text-zinc-600 opacity-0 group-hover:opacity-100 group-hover:text-zinc-400'}
+                  ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-4'}
+                `} />
               </a>
             ))}
 
             <div className={`
-              w-full h-px bg-white/5 my-4 transition-all duration-1000 delay-300
-              ${mobileMenuOpen ? 'scale-x-100 opacity-100' : 'scale-x-0 opacity-0'}
-            `}></div>
-
-            <div className={`
-              flex justify-center gap-8 transition-all duration-700 delay-400
-              ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+              flex gap-6 mt-8 transition-all duration-700 delay-300
+              ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-4 opacity-0'}
             `}>
-              <a href="https://linkedin.com/in/javier" className="p-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 hover:text-blue-400 transition-all hover:scale-110">
-                <Linkedin size={24} />
+              <a href="https://linkedin.com/in/javier" className="p-3 bg-white/5 border border-white/10 rounded-xl text-zinc-400 hover:text-blue-400 hover:bg-white/10 transition-all">
+                <Linkedin size={20} />
               </a>
-              <a href="https://github.com/Javitax47" className="p-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all hover:scale-110">
-                <Github size={24} />
+              <a href="https://github.com/Javitax47" className="p-3 bg-white/5 border border-white/10 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition-all">
+                <Github size={20} />
               </a>
             </div>
 
-            <p className={`
-              mt-12 text-[10px] font-mono tracking-[0.3em] uppercase text-zinc-600 transition-all duration-700 delay-500
+            <div className={`
+              mt-auto transition-all duration-700 delay-500
               ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}
             `}>
-              Systems Engineering &copy; {new Date().getFullYear()}
-            </p>
+              <p className="text-xs text-zinc-500">
+                contacto@javier.dev
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      <main className="relative z-10 lg:pl-12 max-w-6xl mx-auto px-6 pt-32 pb-20">
+      <main className="relative z-10 lg:pl-12 max-w-6xl mx-auto px-6 pt-24 md:pt-32 pb-20">
 
         {/* HERO SECTION */}
         <section className="min-h-[85vh] grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-20">
