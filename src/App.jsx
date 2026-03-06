@@ -61,8 +61,6 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-// --- HOOKS PERSONALIZADOS ---
-
 // 1. Revelar al hacer scroll
 const useScrollReveal = () => {
   const ref = useRef(null);
@@ -92,7 +90,7 @@ const Reveal = ({ children, delay = 0, className = "" }) => {
     <div
       ref={ref}
       style={{ transitionDelay: `${delay}ms` }}
-      className={`transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'
+      className={`transition-all duration-1000 ease-out ${isVisible ? 'opacity-100 translate-y-0 is-revealed' : 'opacity-0 translate-y-12'
         } ${className}`}
     >
       {children}
@@ -123,64 +121,240 @@ const Magnetic = ({ children }) => {
   });
 };
 
+const LiquidContainer = ({ children, className = "", Element = "div", ...props }) => {
+  const containerRef = useRef(null);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    containerRef.current.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
+    containerRef.current.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
+  }, []);
+
+  return (
+    <Element
+      ref={containerRef}
+      onMouseMove={handleMouseMove}
+      className={`group/liquid relative liquid-glass ${className}`}
+      {...props}
+    >
+      <div className="pointer-events-none absolute -inset-px opacity-0 group-hover/liquid:opacity-100 transition-opacity duration-300 z-0 rounded-[inherit]" style={{ background: `radial-gradient(600px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.1), transparent 40%)` }} />
+      <div className="pointer-events-none absolute inset-0 opacity-0 group-hover/liquid:opacity-100 transition-opacity duration-500 z-0 rounded-[inherit]" style={{ background: `radial-gradient(800px circle at var(--mouse-x, -1000px) var(--mouse-y, -1000px), rgba(255,255,255,0.02), transparent 40%)` }} />
+      {children}
+    </Element>
+  );
+};
+
 // --- COMPONENTES VISUALES ---
 
 // Fondo de Partículas (Optimizado)
 const ParticleNetworkCanvas = () => {
   const canvasRef = useRef(null);
   const mouseRef = useRef({ x: -1000, y: -1000 });
+  const configRef = useRef({ particleCount: 200, connectionDistance: 250, mouseRepulsion: 200, baseSpeed: 0.15 });
+  const lastSizeRef = useRef({ width: 0, height: 0 });
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let animationFrameId;
     let particles = [];
-    const config = { particleCount: 200, connectionDistance: 200, mouseRepulsion: 200, baseSpeed: 0.15 };
 
-    const initParticles = () => {
-      particles = [];
-      for (let i = 0; i < config.particleCount; i++) {
-        particles.push({
-          x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * config.baseSpeed, vy: (Math.random() - 0.5) * config.baseSpeed,
-          radius: Math.random() * 1.5 + 0.5, baseAlpha: Math.random() * 0.5 + 0.2
-        });
+    const getConfig = (width) => {
+      // Continuous linear scaling
+      const particleCount = Math.floor(Math.max(120, Math.min(250, width / 6)));
+      const connectionDistance = Math.floor(Math.max(120, Math.min(500, width / 5)));
+      const mouseRepulsion = Math.floor(Math.max(120, Math.min(250, width / 7)));
+      return { particleCount, connectionDistance, mouseRepulsion, baseSpeed: 0.15 };
+    };
+
+    const getQuadrantsCount = (width, height) => {
+      const counts = [0, 0, 0, 0]; // TL, TR, BL, BR
+      particles.forEach(p => {
+        if (p.fadingOut) return;
+        const col = p.x < width / 2 ? 0 : 1;
+        const row = p.y < height / 2 ? 0 : 1;
+        counts[row * 2 + col]++;
+      });
+      return counts;
+    };
+
+    const updateParticles = (targetCount) => {
+      const width = canvas.width;
+      const height = canvas.height;
+      const activeParticles = particles.filter(p => !p.fadingOut);
+
+      if (activeParticles.length > targetCount) {
+        let toRemove = activeParticles.length - targetCount;
+        while (toRemove > 0) {
+          const counts = getQuadrantsCount(width, height);
+          const maxIdx = counts.indexOf(Math.max(...counts));
+
+          // Find an active particle in that quadrant to remove
+          const pIdx = particles.findIndex(p => {
+            if (p.fadingOut) return false;
+            const col = p.x < width / 2 ? 0 : 1;
+            const row = p.y < height / 2 ? 0 : 1;
+            return (row * 2 + col) === maxIdx;
+          });
+
+          if (pIdx !== -1) {
+            particles[pIdx].fadingOut = true;
+            toRemove--;
+          } else {
+            // Fallback if no particle found in target quadrant (shouldn't happen)
+            const fallbackIdx = particles.findIndex(p => !p.fadingOut);
+            if (fallbackIdx !== -1) {
+              particles[fallbackIdx].fadingOut = true;
+              toRemove--;
+            } else break;
+          }
+        }
       }
     };
 
     const resizeCanvas = () => {
-      canvas.width = window.innerWidth; canvas.height = window.innerHeight;
-      initParticles();
+      const width = window.innerWidth;
+      const height = window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
+
+      const newConfig = getConfig(width);
+      configRef.current = newConfig;
+      updateParticles(newConfig.particleCount);
+      lastSizeRef.current = { width, height };
     };
 
     window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+
+    const initialWidth = window.innerWidth;
+    const initialHeight = window.innerHeight;
+    canvas.width = initialWidth;
+    canvas.height = initialHeight;
+    configRef.current = getConfig(initialWidth);
+    updateParticles(configRef.current.particleCount);
+    lastSizeRef.current = { width: initialWidth, height: initialHeight };
+
+    let frameCount = 0;
 
     const animate = () => {
+      const config = configRef.current;
+      const fadeSpeed = 0.01;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const width = canvas.width;
+      const height = canvas.height;
+
+      const activeParticles = particles.filter(p => !p.fadingOut);
+      const counts = getQuadrantsCount(width, height);
+
+      // Balancing Spawn: Pick the sparsest quadrant
+      if (activeParticles.length < config.particleCount) {
+        const toAdd = Math.min(config.particleCount - activeParticles.length, 2);
+        for (let i = 0; i < toAdd; i++) {
+          const minIdx = counts.indexOf(Math.min(...counts));
+          counts[minIdx]++; // Update local count for the next iteration of the loop
+
+          const col = minIdx % 2;
+          const row = Math.floor(minIdx / 2);
+
+          const px = (col * width / 2) + Math.random() * (width / 2);
+          const py = (row * height / 2) + Math.random() * (height / 2);
+
+          particles.push({
+            x: px, y: py,
+            vx: (Math.random() - 0.5) * config.baseSpeed, vy: (Math.random() - 0.5) * config.baseSpeed,
+            radius: Math.random() * 1.5 + 0.5, baseAlpha: Math.random() * 0.5 + 0.1,
+            currentAlpha: 0, fadingOut: false
+          });
+        }
+      }
+
+      // Slow Migration: Periodically move particles from dense to sparse areas
+      frameCount++;
+      if (frameCount % 60 === 0 && particles.length > 0) {
+        const maxVal = Math.max(...counts);
+        const minVal = Math.min(...counts);
+        if (maxVal - minVal > config.particleCount * 0.1) { // 10% tolerance
+          const maxIdx = counts.indexOf(maxVal);
+          const pIdx = particles.findIndex(p => {
+            if (p.fadingOut) return false;
+            const c = p.x < width / 2 ? 0 : 1;
+            const r = p.y < height / 2 ? 0 : 1;
+            return (r * 2 + c) === maxIdx;
+          });
+          if (pIdx !== -1) particles[pIdx].fadingOut = true;
+        }
+      }
+
       for (let i = 0; i < particles.length; i++) {
         let p = particles[i];
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
-        if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
 
-        let dx = mouseRef.current.x - p.x; let dy = mouseRef.current.y - p.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < config.mouseRepulsion) {
-          let force = (config.mouseRepulsion - dist) / config.mouseRepulsion;
-          p.x -= (dx / dist) * force * 0.5; p.y -= (dy / dist) * force * 0.5;
+        if (p.fadingOut) {
+          p.currentAlpha -= fadeSpeed;
+          if (p.currentAlpha <= 0) {
+            particles.splice(i, 1);
+            i--;
+            continue;
+          }
+        } else if (p.currentAlpha < p.baseAlpha) {
+          p.currentAlpha += fadeSpeed;
+          if (p.currentAlpha > p.baseAlpha) p.currentAlpha = p.baseAlpha;
         }
 
-        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, ${p.baseAlpha})`; ctx.fill();
+        p.x += p.vx; p.y += p.vy;
 
-        for (let j = i + 1; j < particles.length; j++) {
-          let p2 = particles[j];
-          let dist2 = Math.sqrt((p.x - p2.x) ** 2 + (p.y - p2.y) ** 2);
-          if (dist2 < config.connectionDistance) {
-            ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(255, 255, 255, ${(1 - (dist2 / config.connectionDistance)) * 0.1})`;
-            ctx.lineWidth = 0.6; ctx.stroke();
+        if (!p.fadingOut) {
+          if (p.x < 0 || p.x > width || p.y < 0 || p.y > height) {
+            p.fadingOut = true;
+          }
+        }
+
+        let dx = mouseRef.current.x - p.x;
+        let dy = mouseRef.current.y - p.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < config.mouseRepulsion) {
+          let force = (config.mouseRepulsion - dist) / config.mouseRepulsion;
+          p.x -= (dx / dist) * force * 0.5;
+          p.y -= (dy / dist) * force * 0.5;
+        }
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${p.currentAlpha})`;
+        ctx.fill();
+
+        // Constellation Effect: Connect to 1-2 nearest neighbors instead of all within radius
+        if (config.connectionDistance > 0) {
+          const neighbors = [];
+          for (let j = 0; j < particles.length; j++) {
+            if (i === j) continue;
+            const p2 = particles[j];
+            const dist2 = Math.sqrt((p.x - p2.x) ** 2 + (p.y - p2.y) ** 2);
+            if (dist2 < config.connectionDistance) {
+              neighbors.push({ index: j, dist: dist2, alpha: p2.currentAlpha });
+            }
+          }
+
+          // Sort by distance and connect only to the nearest 2
+          neighbors.sort((a, b) => a.dist - b.dist);
+          const maxConnections = 2;
+
+          for (let k = 0; k < Math.min(neighbors.length, maxConnections); k++) {
+            const n = neighbors[k];
+            const p2 = particles[n.index];
+
+            // To avoid drawing the same line twice (improves performance and prevents color stacking)
+            if (i < n.index) {
+              const lineAlpha = Math.min(p.currentAlpha, n.alpha);
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              // Increased base visibility (from 0.1 to 0.3) for the "stronger connections" request
+              ctx.strokeStyle = `rgba(160, 200, 255, ${(1 - (n.dist / config.connectionDistance)) * 0.3 * (lineAlpha / Math.max(p.baseAlpha, p2.baseAlpha))})`;
+              ctx.lineWidth = 0.8;
+              ctx.stroke();
+            }
           }
         }
       }
@@ -194,8 +368,10 @@ const ParticleNetworkCanvas = () => {
     document.body.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
-      window.removeEventListener('resize', resizeCanvas); window.removeEventListener('mousemove', handleMouseMove);
-      document.body.removeEventListener('mouseleave', handleMouseLeave); cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', resizeCanvas);
+      window.removeEventListener('mousemove', handleMouseMove);
+      document.body.removeEventListener('mouseleave', handleMouseLeave);
+      cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
@@ -204,15 +380,6 @@ const ParticleNetworkCanvas = () => {
 
 // Tarjeta con efecto Spotlight
 const ProjectCard = ({ title, category, icon: Icon, description, techStack, githubLink, liveLink, status, metrics }) => {
-  const cardRef = useRef(null);
-
-  const handleMouseMove = useCallback((e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    cardRef.current.style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-    cardRef.current.style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-  }, []);
-
   const getStatusColor = (s) => {
     switch (s) {
       case 'Terminado': return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
@@ -223,14 +390,12 @@ const ProjectCard = ({ title, category, icon: Icon, description, techStack, gith
   };
 
   return (
-    <div ref={cardRef} onMouseMove={handleMouseMove} className="group relative flex flex-col h-full bg-[#0a0a0a] rounded-2xl overflow-hidden shadow-2xl">
-      <div className="pointer-events-none absolute -inset-px rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" style={{ background: `radial-gradient(600px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(255,255,255,0.15), transparent 40%)` }} />
-      <div className="relative flex flex-col h-full m-[1px] bg-[#0c0c0e] rounded-[15px] p-8 z-10">
-        <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-[15px]" style={{ background: `radial-gradient(800px circle at var(--mouse-x, 0) var(--mouse-y, 0), rgba(255,255,255,0.03), transparent 40%)` }} />
+    <LiquidContainer className="flex flex-col h-full rounded-2xl overflow-hidden transition-all duration-500 hover:scale-[1.01] hover:shadow-[0_0_30px_rgba(59,130,246,0.15)] hover:border-white/20">
+      <div className="relative flex flex-col h-full p-8 z-10">
         <div className="relative z-20 flex-grow">
           <div className="flex items-start justify-between mb-6">
             <div className="flex gap-2">
-              <div className="p-3 bg-white/[0.02] rounded-xl border border-white/[0.05] text-zinc-400 group-hover:text-blue-400 transition-colors shadow-inner">
+              <div className="p-3 bg-white/[0.03] rounded-xl border border-white/[0.05] text-zinc-400 group-hover:text-blue-400 transition-colors shadow-inner">
                 <Icon size={22} strokeWidth={1.5} />
               </div>
               {status && (
@@ -239,7 +404,7 @@ const ProjectCard = ({ title, category, icon: Icon, description, techStack, gith
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-mono tracking-widest uppercase px-3 py-1 bg-white/[0.02] text-zinc-400 rounded-full border border-white/[0.05]">
+            <span className="text-[10px] font-mono tracking-widest uppercase px-3 py-1 bg-white/[0.03] text-zinc-400 rounded-full border border-white/[0.05]">
               {category}
             </span>
           </div>
@@ -255,7 +420,7 @@ const ProjectCard = ({ title, category, icon: Icon, description, techStack, gith
         <div className="relative z-20 mt-auto border-t border-white/[0.05] pt-6">
           <div className="flex flex-wrap gap-2 mb-6">
             {techStack.map((tech, i) => (
-              <span key={i} className="text-[11px] font-medium px-2 py-1 bg-[#050505] text-zinc-500 border border-white/[0.05] rounded-md">{tech}</span>
+              <span key={i} className="text-[11px] font-medium px-2 py-1 bg-white/[0.03] text-zinc-500 border border-white/[0.05] rounded-md">{tech}</span>
             ))}
           </div>
           <div className="flex items-center gap-5">
@@ -264,7 +429,7 @@ const ProjectCard = ({ title, category, icon: Icon, description, techStack, gith
           </div>
         </div>
       </div>
-    </div>
+    </LiquidContainer>
   );
 };
 
@@ -280,7 +445,7 @@ const PROJECTS = [
     techStack: ['Deep Learning', 'Vision Transformers', 'Procesamiento de Señales', 'PyTorch', 'UI/UX', 'Astrofísica Computacional'],
     metrics: "2 arquitecturas DL comparadas (CNN vs ViT) · Regresión de parámetros astrofísicos",
     status: "En Proceso",
-    githubLink: "https://github.com/Javier/gravity-waves-detection"
+    githubLink: "https://github.com/Javitax47/TFG_GravitationalWaves_AI"
   },
   {
     title: "Solver Espacio-Temporal Verificador de Métricas Originales",
@@ -305,38 +470,17 @@ const PROJECTS = [
     githubLink: "https://github.com/Javier/cloud-chamber"
   },
   {
-    title: "App Kit para Simulación de Cascadas de Rayos Cósmicos",
-    category: "Física Computacional",
+    title: "Physdeck: Kit de Simuladores Físicos",
+    category: "Física Computacional & VFX",
     filterGroup: "Física",
     icon: Layers,
-    description: "User-friendly app kit para simular cascadas de rayos cósmicos integrando CORSIKA, con GUI interactiva para modelado y ejecución de simulaciones complejas.",
-    techStack: ['Integración CORSIKA', 'GUI Dev', 'Física de Astropartículas'],
-    metrics: "Integración completa con simulador CORSIKA · GUI interactiva",
+    description: "Ecosistema modular que integra simulaciones de cascadas de rayos cósmicos (CORSIKA), dinámica de fluidos para explosiones y predicción de reacciones químicas moleculares con visualización avanzada.",
+    techStack: ['CORSIKA', 'VFX', 'Dinámica de Fluidos', 'Química Computacional', 'GUI Dev'],
+    metrics: "3 motores de simulación · Visualización en tiempo real · Predicción molecular",
     status: "Terminado",
-    githubLink: "https://github.com/Javier/cosmic-rays-simulator"
+    githubLink: "https://github.com/Javier/physdeck"
   },
-  {
-    title: "Simulador/Visualizador de Explosiones",
-    category: "VFX & Dinámica de Fluidos",
-    filterGroup: "Otras",
-    icon: Sparkles,
-    description: "Simulador y visualizador de explosiones de diferentes tipos y tonos, modelando propagación de fluidos, partículas y refracciones basadas en composición química.",
-    techStack: ['Computación Gráfica (VFX)', 'Simulación de Fluidos', 'Matemáticas de Renderizado'],
-    metrics: "Renderizado en tiempo real · Múltiples modelos de propagación",
-    status: "Terminado",
-    githubLink: "https://github.com/Javier/explosions-simulator"
-  },
-  {
-    title: "Simulador de Reacciones Químicas y Predicción de Elementos",
-    category: "Química Computacional & Algoritmia",
-    filterGroup: "Otras",
-    icon: FlaskConical,
-    description: "Simulador de reacciones químicas a partir de reactivos, con predicción de características de nuevos elementos y sus reacciones con elementos y moléculas existentes.",
-    techStack: ['Química Computacional', 'Diseño de Algoritmos', 'Estructuras de Datos'],
-    metrics: "Predicción de propiedades de elementos desconocidos",
-    status: "Terminado",
-    githubLink: "https://github.com/Javier/chemistry-simulator"
-  },
+  /*
   {
     title: "Bot de Arbitraje MEV",
     category: "DeFi, Rust & Análisis Formal",
@@ -348,6 +492,7 @@ const PROJECTS = [
     status: "En Proceso",
     githubLink: "https://github.com/Javier/mev-bot"
   },
+  */
   {
     title: "Misión de Exploración a Trappist-1 y Motor de Optimización",
     category: "Ingeniería Aeroespacial",
@@ -557,15 +702,63 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [formStatus, setFormStatus] = useState('idle'); // idle | sending | sent | error
 
+  // Navbar Visibility Logic
+  const [navVisible, setNavVisible] = useState(true);
+  const lastScrollY = useRef(0);
+  const scrollTimeout = useRef(null);
+
   useEffect(() => {
     const handleScroll = () => {
-      const totalScroll = document.documentElement.scrollTop;
+      const currentScrollY = window.scrollY;
       const windowHeight = document.documentElement.scrollHeight - document.documentElement.clientHeight;
-      setScrollProgress(`${(totalScroll / windowHeight) * 100}%`);
+      setScrollProgress(`${(currentScrollY / windowHeight) * 100}%`);
+
+      // Show navbar if at the very top
+      if (currentScrollY < 50) {
+        setNavVisible(true);
+        if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+        return;
+      }
+
+      // Hide on scroll down, Show on scroll up
+      if (currentScrollY > lastScrollY.current) {
+        setNavVisible(false);
+      } else {
+        setNavVisible(true);
+      }
+      lastScrollY.current = currentScrollY;
+
+      // Inactivity hiding (only if not at top and menu is closed)
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+      if (!mobileMenuOpen) {
+        scrollTimeout.current = setTimeout(() => {
+          if (window.scrollY > 100) setNavVisible(false);
+        }, 2500);
+      }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
+
+    const handleMouseMove = (e) => {
+      // Show navbar if mouse is near the top (e.g., top 80px)
+      if (e.clientY < 80) {
+        setNavVisible(true);
+        // Reset inactivity timer when hovering the top zone
+        if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+        if (!mobileMenuOpen) {
+          scrollTimeout.current = setTimeout(() => {
+            if (window.scrollY > 100) setNavVisible(false);
+          }, 3000); // Slightly longer timeout when triggered by mouse
+        }
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      window.removeEventListener('mousemove', handleMouseMove);
+      if (scrollTimeout.current) clearTimeout(scrollTimeout.current);
+    };
+  }, [mobileMenuOpen]);
 
   // Active section tracking
   useEffect(() => {
@@ -573,12 +766,16 @@ export default function App() {
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
+          // Robust detection: the section in the center of the viewport is the active one
           if (entry.isIntersecting) {
             setActiveSection(entry.target.id);
           }
         });
       },
-      { threshold: 0.3, rootMargin: '-80px 0px -40% 0px' }
+      {
+        threshold: 0,
+        rootMargin: '-45% 0px -45% 0px'
+      }
     );
     sections.forEach((s) => observer.observe(s));
     return () => sections.forEach((s) => observer.unobserve(s));
@@ -601,6 +798,7 @@ export default function App() {
 
   const handleNavClick = (e, id) => {
     e.preventDefault();
+    setActiveSection(id); // Immediate feedback
     setMobileMenuOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -639,74 +837,134 @@ export default function App() {
       <ParticleNetworkCanvas />
 
       {/* NAVBAR */}
-      <div className="fixed w-full top-6 z-50 px-4 md:px-6 flex justify-center">
-        <nav className="bg-[#0a0a0a]/70 backdrop-blur-xl border border-white/[0.08] rounded-full px-4 md:px-6 py-3 flex items-center gap-4 md:gap-8 shadow-2xl transition-all w-full max-w-3xl md:w-auto">
-          <a href="#" className="font-semibold text-lg text-white tracking-tight hover:opacity-80 transition-opacity">
+      <div className={`
+        fixed w-full top-6 z-50 px-4 flex justify-center transition-transform duration-700 ease-[cubic-bezier(0.23,1,0.32,1)] will-change-transform
+        ${navVisible || mobileMenuOpen ? 'translate-y-0' : '-translate-y-32'}
+      `}>
+        <LiquidContainer Element="nav" className={`
+          flex items-center transition-all duration-500 ease-in-out liquid-glass
+          bg-[#0a0a0a]/80 backdrop-blur-[40px]
+          ${(navVisible || mobileMenuOpen) ? 'nav-visible' : ''}
+          ${mobileMenuOpen ? 'rounded-3xl px-8 py-5 w-full max-w-sm' : 'rounded-full px-4 md:px-6 py-2 md:py-3 w-fit'}
+        `}>
+          {/* Logo - Hidden when menu is open on mobile to focus on the island feel */}
+          <a href="#" className={`font-semibold text-lg text-white tracking-tight hover:opacity-80 transition-all duration-300 ${mobileMenuOpen ? 'opacity-0 scale-95 pointer-events-none w-0' : 'opacity-100 scale-100'}`}>
             Javier<span className="text-blue-500">.</span>
           </a>
-          <div className="h-4 w-px bg-white/10 hidden md:block"></div>
-          <div className="hidden md:flex gap-6 text-sm font-medium text-zinc-400">
-            {navLinks.map((link) => (
-              <a
-                key={link.id}
-                href={`#${link.id}`}
-                onClick={(e) => handleNavClick(e, link.id)}
-                className={`transition-colors ${activeSection === link.id ? 'text-white' : 'hover:text-white'}`}
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-          <div className="h-4 w-px bg-white/10 hidden md:block"></div>
-          <div className="hidden md:flex items-center gap-4">
-            <a href="https://linkedin.com/in/javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-blue-400 transition-colors">
-              <Linkedin size={16} />
-            </a>
-            <a href="https://github.com/Javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
-              <Github size={16} />
-            </a>
-          </div>
-          {/* Mobile hamburger */}
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="ml-auto md:hidden text-zinc-300 hover:text-white transition-colors p-1"
-            aria-label="Toggle menu"
-          >
-            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </nav>
-      </div>
 
-      {/* MOBILE DRAWER */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-[55] md:hidden">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setMobileMenuOpen(false)} />
-          <div className="absolute top-20 left-4 right-4 bg-[#0c0c0e] border border-white/[0.08] rounded-2xl p-6 shadow-2xl animate-in fade-in slide-in-from-top-4 duration-300">
-            <div className="flex flex-col gap-4">
+          {/* Desktop Links */}
+          <div className="hidden md:flex items-center">
+            <div className="h-4 w-px bg-white/10 mx-6"></div>
+            <div className="flex gap-8 text-sm font-medium text-zinc-400">
               {navLinks.map((link) => (
                 <a
                   key={link.id}
                   href={`#${link.id}`}
                   onClick={(e) => handleNavClick(e, link.id)}
-                  className={`text-lg font-medium transition-colors ${activeSection === link.id ? 'text-blue-400' : 'text-zinc-300 hover:text-white'}`}
+                  className={`transition-colors relative py-1 ${activeSection === link.id ? 'text-white' : 'hover:text-white'}`}
                 >
                   {link.label}
+                  {activeSection === link.id && (
+                    <span className="absolute -bottom-1 left-0 w-full h-[2px] bg-blue-500 rounded-full animate-in fade-in zoom-in duration-300" />
+                  )}
                 </a>
               ))}
-              <div className="border-t border-white/[0.08] pt-4 flex gap-5">
-                <a href="https://linkedin.com/in/javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-blue-400 transition-colors">
-                  <Linkedin size={20} />
-                </a>
-                <a href="https://github.com/Javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
-                  <Github size={20} />
-                </a>
-              </div>
+            </div>
+            <div className="h-4 w-px bg-white/10 mx-6"></div>
+            <div className="flex items-center gap-5">
+              <a href="https://linkedin.com/in/javier" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-blue-400 transition-colors">
+                <Linkedin size={16} />
+              </a>
+              <a href="https://github.com/Javitax47" target="_blank" rel="noopener noreferrer" className="text-zinc-400 hover:text-white transition-colors">
+                <Github size={16} />
+              </a>
             </div>
           </div>
-        </div>
-      )}
 
-      <main className="relative z-10 max-w-6xl mx-auto px-6 pt-32 pb-20">
+          {/* Mobile Menu Toggle - Centered when open */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className={`
+              md:hidden flex items-center gap-2 transition-all duration-300 focus:outline-none active:outline-none
+              ${mobileMenuOpen ? 'w-full justify-between' : 'ml-3 md:ml-4 p-0.5 md:p-1'}
+            `}
+            aria-label="Toggle menu"
+          >
+            {mobileMenuOpen && (
+              <span className="text-sm font-mono tracking-widest uppercase text-zinc-500 animate-in fade-in slide-in-from-left-4 duration-500">Navegación</span>
+            )}
+            <div className={`p-1.5 md:p-2 rounded-full transition-colors ${mobileMenuOpen ? 'bg-white/5 text-white' : 'text-zinc-400 hover:text-white'}`}>
+              {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+            </div>
+          </button>
+        </LiquidContainer>
+      </div>
+
+      {/* PREMIUM MOBILE OVERLAY MENU */}
+      <div className={`
+        fixed inset-0 z-[45] md:hidden transition-all duration-700 ease-[cubic-bezier(0.23,1,0.32,1)]
+        ${mobileMenuOpen ? 'opacity-100 pointer-events-auto scale-100' : 'opacity-0 pointer-events-none scale-105'}
+      `}>
+        {/* Extreme Blur Background */}
+        <div className="absolute inset-0 bg-[#050505]/80 backdrop-blur-[40px]" onClick={() => setMobileMenuOpen(false)} />
+
+        {/* Dynamic Gradients */}
+        <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
+          <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-blue-500/10 rounded-full blur-[120px] animate-pulse"></div>
+          <div className="absolute -bottom-[10%] -right-[10%] w-[50%] h-[50%] bg-emerald-500/5 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '1s' }}></div>
+        </div>
+
+        <div className="relative h-full flex flex-col justify-center items-center px-8">
+          <div className="flex flex-col items-center gap-8 w-full max-w-xs">
+            {navLinks.map((link, index) => (
+              <a
+                key={link.id}
+                href={`#${link.id}`}
+                onClick={(e) => handleNavClick(e, link.id)}
+                className="group relative flex items-center justify-center w-full py-4 overflow-hidden"
+                style={{ transitionDelay: `${index * 50}ms` }}
+              >
+                <span className={`
+                  text-4xl font-bold tracking-tight transition-all duration-500
+                  ${activeSection === link.id ? 'text-white' : 'text-zinc-600 group-hover:text-zinc-300'}
+                  ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+                `}>
+                  {link.label}
+                </span>
+                {activeSection === link.id && (
+                  <span className="absolute bottom-2 w-12 h-[2px] bg-blue-500 rounded-full animate-in zoom-in duration-500" />
+                )}
+              </a>
+            ))}
+
+            <div className={`
+              w-full h-px bg-white/5 my-4 transition-all duration-1000 delay-300
+              ${mobileMenuOpen ? 'scale-x-100 opacity-100' : 'scale-x-0 opacity-0'}
+            `}></div>
+
+            <div className={`
+              flex justify-center gap-8 transition-all duration-700 delay-400
+              ${mobileMenuOpen ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}
+            `}>
+              <a href="https://linkedin.com/in/javier" className="p-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 hover:text-blue-400 transition-all hover:scale-110">
+                <Linkedin size={24} />
+              </a>
+              <a href="https://github.com/Javitax47" className="p-4 bg-white/5 border border-white/10 rounded-2xl text-zinc-400 hover:text-white transition-all hover:scale-110">
+                <Github size={24} />
+              </a>
+            </div>
+
+            <p className={`
+              mt-12 text-[10px] font-mono tracking-[0.3em] uppercase text-zinc-600 transition-all duration-700 delay-500
+              ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'}
+            `}>
+              Systems Engineering &copy; {new Date().getFullYear()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <main className="relative z-10 lg:pl-12 max-w-6xl mx-auto px-6 pt-32 pb-20">
 
         {/* HERO SECTION */}
         <section className="min-h-[85vh] grid grid-cols-1 lg:grid-cols-12 gap-12 items-center mb-20">
@@ -767,62 +1025,70 @@ export default function App() {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Bloque 1: Software & Sistemas */}
             <Reveal delay={0} className="md:col-span-2">
-              <div className="bg-[#0c0c0e] border border-white/[0.05] p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/[0.1] transition-colors">
-                <div className="flex items-center gap-3 mb-6">
-                  <Terminal className="text-blue-400" size={24} />
-                  <h3 className="text-lg font-medium text-white">Software & Sistemas Críticos</h3>
+              <LiquidContainer className="p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/20 transition-all">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Terminal className="text-blue-400" size={24} />
+                    <h3 className="text-lg font-medium text-white">Software & Sistemas Críticos</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Rust (Advanced)', 'C++20', 'TypeScript', 'React / Next.js', 'Tailwind CSS', 'Firebase', 'PWA / IndexedDB'].map(skill => (
+                      <span key={skill} className="px-3 py-1.5 bg-white/[0.03] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {['Rust (Advanced)', 'C++20', 'TypeScript', 'React / Next.js', 'Tailwind CSS', 'Firebase', 'PWA / IndexedDB'].map(skill => (
-                    <span key={skill} className="px-3 py-1.5 bg-[#050505] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
-                  ))}
-                </div>
-              </div>
+              </LiquidContainer>
             </Reveal>
 
             {/* Bloque 2: IA & HPC */}
             <Reveal delay={100} className="md:col-span-2">
-              <div className="bg-[#0c0c0e] border border-white/[0.05] p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/[0.1] transition-colors">
-                <div className="flex items-center gap-3 mb-6">
-                  <Network className="text-purple-400" size={24} />
-                  <h3 className="text-lg font-medium text-white">IA & High-Performance Computing</h3>
+              <LiquidContainer className="p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/20 transition-all">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Cpu className="text-emerald-400" size={24} />
+                    <h3 className="text-lg font-medium text-white">IA & HPC</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['PyTorch / JAX', 'CUDA (C++)', 'Optimizadores Evolutivos', 'Transformers', 'Reinforcement Learning', 'Sistemas de Control'].map(skill => (
+                      <span key={skill} className="px-3 py-1.5 bg-white/[0.03] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {['PyTorch (CNNs/ViT)', 'Z3 Automated Reasoning', 'Signal Processing', 'CUDA / Compute Shaders', 'HPC Clusters', 'Análisis Formal'].map(skill => (
-                    <span key={skill} className="px-3 py-1.5 bg-[#050505] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
-                  ))}
-                </div>
-              </div>
+              </LiquidContainer>
             </Reveal>
 
             {/* Bloque 3: Hardware */}
             <Reveal delay={200} className="md:col-span-2">
-              <div className="bg-[#0c0c0e] border border-white/[0.05] p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/[0.1] transition-colors">
-                <div className="flex items-center gap-3 mb-6">
-                  <Cpu className="text-emerald-400" size={24} />
-                  <h3 className="text-lg font-medium text-white">Hardware & Física Experimental</h3>
+              <LiquidContainer className="p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/20 transition-all">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Cpu className="text-emerald-400" size={24} />
+                    <h3 className="text-lg font-medium text-white">Hardware & Física Experimental</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['SkyWater 130nm (VLSI)', 'Custom PCB Design', 'Sistemas Peltier', 'Analog Mixed-Signal', 'NMR Hardware', 'Metrología Cuántica'].map(skill => (
+                      <span key={skill} className="px-3 py-1.5 bg-white/[0.03] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {['SkyWater 130nm (VLSI)', 'Custom PCB Design', 'Sistemas Peltier', 'Analog Mixed-Signal', 'NMR Hardware', 'Metrología Cuántica'].map(skill => (
-                    <span key={skill} className="px-3 py-1.5 bg-[#050505] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
-                  ))}
-                </div>
-              </div>
+              </LiquidContainer>
             </Reveal>
 
             {/* Bloque 4: Ingeniería Avanzada */}
             <Reveal delay={300} className="md:col-span-2">
-              <div className="bg-[#0c0c0e] border border-white/[0.05] p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/[0.1] transition-colors">
-                <div className="flex items-center gap-3 mb-6">
-                  <Orbit className="text-orange-400" size={24} />
-                  <h3 className="text-lg font-medium text-white">Ingeniería Avanzada & Modelado</h3>
+              <LiquidContainer className="p-8 rounded-2xl h-full flex flex-col justify-center hover:border-white/20 transition-all">
+                <div className="relative z-10">
+                  <div className="flex items-center gap-3 mb-6">
+                    <Orbit className="text-orange-400" size={24} />
+                    <h3 className="text-lg font-medium text-white">Ingeniería Avanzada & Modelado</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {['Mecánica Orbital', 'Optimización (SciPy)', 'Química Computacional', 'NLTL Electronics', 'Cálculo Tensorial', 'Termohidráulica'].map(skill => (
+                      <span key={skill} className="px-3 py-1.5 bg-white/[0.03] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {['Mecánica Orbital', 'Optimización (SciPy)', 'Química Computacional', 'NLTL Electronics', 'Cálculo Tensorial', 'Termohidráulica'].map(skill => (
-                    <span key={skill} className="px-3 py-1.5 bg-[#050505] border border-white/[0.05] rounded-md text-sm text-zinc-300">{skill}</span>
-                  ))}
-                </div>
-              </div>
+              </LiquidContainer>
             </Reveal>
           </div>
         </section>
@@ -907,9 +1173,9 @@ export default function App() {
                   <button
                     key={cat}
                     onClick={() => setActiveFilter(cat)}
-                    className={`whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full border transition-all duration-200 ${activeFilter === cat
-                      ? 'bg-white text-[#050505] border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]'
-                      : 'bg-white/[0.03] text-zinc-400 border-white/[0.08] hover:bg-white/[0.06] hover:text-zinc-200'
+                    className={`whitespace-nowrap text-sm font-medium px-4 py-2 rounded-full border transition-all duration-300 ${activeFilter === cat
+                      ? 'bg-white text-[#050505] border-white shadow-[0_0_20px_rgba(255,255,255,0.2)]'
+                      : 'bg-white/[0.03] text-zinc-400 border-white/[0.08] hover:bg-white/[0.08] hover:text-white backdrop-blur-md'
                       }`}
                   >
                     {cat}
@@ -980,7 +1246,7 @@ export default function App() {
         {/* CONTACT SECTION */}
         <section id="contact" className="py-24">
           <Reveal>
-            <div className="relative bg-gradient-to-b from-[#0c0c0e] to-[#050505] border border-white/[0.05] rounded-[2rem] p-8 md:p-16 overflow-hidden shadow-2xl">
+            <LiquidContainer className="relative rounded-[2rem] p-8 md:p-16 overflow-hidden shadow-2xl">
               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-[1px] bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"></div>
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40rem] h-[40rem] bg-blue-500/5 rounded-full blur-[120px] pointer-events-none"></div>
 
@@ -1028,11 +1294,11 @@ export default function App() {
                       </div>
                       <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                     </a>
-                    <a href="https://github.com/Javier" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:bg-white/[0.06] hover:border-white/[0.15] transition-all group">
+                    <a href="https://github.com/Javitax47" target="_blank" rel="noopener noreferrer" className="flex items-center gap-4 p-4 bg-white/[0.03] border border-white/[0.08] rounded-xl hover:bg-white/[0.06] hover:border-white/[0.15] transition-all group">
                       <div className="p-2.5 bg-zinc-500/10 rounded-lg text-zinc-300"><Github size={18} /></div>
                       <div className="flex-grow">
                         <p className="text-sm font-medium text-white">GitHub</p>
-                        <p className="text-xs text-zinc-500">github.com/Javier</p>
+                        <p className="text-xs text-zinc-500">github.com/Javitax47</p>
                       </div>
                       <ArrowUpRight size={16} className="text-zinc-600 group-hover:text-white transition-colors" />
                     </a>
@@ -1050,7 +1316,7 @@ export default function App() {
                   </div>
                 </div>
               </div>
-            </div>
+            </LiquidContainer>
           </Reveal>
         </section>
       </main>
